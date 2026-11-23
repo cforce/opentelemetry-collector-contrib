@@ -117,7 +117,7 @@ func requireFallbackMetricValue(t *testing.T, reader *metric.ManualReader, value
 	require.NoError(t, err)
 	require.Len(t, rm.ScopeMetrics, 1)
 	sm := rm.ScopeMetrics[0]
-	require.Len(t, sm.Metrics, 2)
+	require.GreaterOrEqual(t, len(sm.Metrics), 2)
 
 	var fallbackMetric metricdata.Metrics
 	for _, m := range sm.Metrics {
@@ -160,7 +160,7 @@ func TestSupervisorMetrics(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, rm.ScopeMetrics, 1)
 	sm := rm.ScopeMetrics[0]
-	require.Len(t, sm.Metrics, 2)
+	require.GreaterOrEqual(t, len(sm.Metrics), 2)
 
 	findMetric := func(name string) metricdata.Metrics {
 		for _, m := range sm.Metrics {
@@ -217,7 +217,7 @@ func TestSupervisorMetricsLifecycle(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, rm.ScopeMetrics, 1)
 	sm := rm.ScopeMetrics[0]
-	require.Len(t, sm.Metrics, 2)
+	require.GreaterOrEqual(t, len(sm.Metrics), 2)
 
 	findMetric := func(name string) metricdata.Metrics {
 		for _, m := range sm.Metrics {
@@ -277,4 +277,34 @@ func TestSupervisorInitialFallbackConfigClearsFallbackMetricOnConnect(t *testing
 	supervisor.onConnect(t.Context())
 
 	requireFallbackMetricValue(t, reader, 0)
+}
+
+func TestSupervisorOnConnectSetsOpAMPConnectionStatus(t *testing.T) {
+	reader := metric.NewManualReader()
+	mp := metric.NewMeterProvider(metric.WithReader(reader))
+	defer func() { _ = mp.Shutdown(t.Context()) }()
+
+	metrics, err := supervisorTelemetry.NewMetrics(mp)
+	require.NoError(t, err)
+
+	supervisor := newTestSupervisorWithStartupFallbackConfig(t, metrics)
+	supervisor.onConnect(t.Context())
+
+	var rm metricdata.ResourceMetrics
+	require.NoError(t, reader.Collect(t.Context(), &rm))
+	require.Len(t, rm.ScopeMetrics, 1)
+
+	var status metricdata.Metrics
+	for _, m := range rm.ScopeMetrics[0].Metrics {
+		if m.Name == supervisorTelemetry.OpAMPConnectionStatusMetric {
+			status = m
+			break
+		}
+	}
+	require.NotEmpty(t, status)
+	metricdatatest.AssertAggregationsEqual(t, metricdata.Sum[int64]{
+		DataPoints:  []metricdata.DataPoint[int64]{{Value: 1}},
+		Temporality: metricdata.CumulativeTemporality,
+		IsMonotonic: false,
+	}, status.Data, metricdatatest.IgnoreTimestamp())
 }

@@ -239,3 +239,5 @@ replace github.com/open-telemetry/opentelemetry-collector-contrib/extension/oaut
 replace github.com/open-telemetry/opentelemetry-collector-contrib/extension/internal/credentialsfile => ../../extension/internal/credentialsfile
 
 replace github.com/open-telemetry/opentelemetry-collector-contrib/extension/internal/secretprovider => ../../extension/internal/secretprovider
+
+replace github.com/open-telemetry/opamp-go => github.com/cforce/opamp-go v0.23.1-0.20261123124057-9730a6f6e91a

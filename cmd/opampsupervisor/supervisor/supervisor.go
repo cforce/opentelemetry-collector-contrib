@@ -727,8 +727,19 @@ func (s *Supervisor) startOpAMPClient() error {
 		RemoteConfigStatus: s.persistentState.GetLastRemoteConfigStatus(),
 		Callbacks: types.Callbacks{
 			OnConnect: s.onConnect,
-			OnConnectFailed: func(_ context.Context, err error) {
+			OnConnectFailed: func(ctx context.Context, err error) {
+				s.metrics.RecordOpAMPConnectFailed(ctx)
 				s.telemetrySettings.Logger.Error("Failed to connect to the OpAMP server", zap.Error(err))
+			},
+			OnDisconnect: func(ctx context.Context, err error) {
+				s.metrics.RecordOpAMPDisconnected(ctx)
+				s.telemetrySettings.Logger.Warn("Lost connection to the OpAMP server", zap.Error(err))
+			},
+			OnMessageSent: func(ctx context.Context, _ *protobufs.AgentToServer, size int) {
+				s.metrics.RecordOpAMPMessageSent(ctx, size)
+			},
+			OnMessageReceived: func(ctx context.Context, _ *protobufs.ServerToAgent, size int) {
+				s.metrics.RecordOpAMPMessageReceived(ctx, size)
 			},
 			OnError: func(_ context.Context, err *protobufs.ServerErrorResponse) {
 				s.telemetrySettings.Logger.Error("Server returned an error response", zap.String("message", err.ErrorMessage))
@@ -1084,6 +1095,7 @@ func (*Supervisor) getHeadersFromSettings(protoHeaders *protobufs.Headers) http.
 
 func (s *Supervisor) onConnect(ctx context.Context) {
 	s.telemetrySettings.Logger.Info("Connected to the OpAMP server.")
+	s.metrics.RecordOpAMPConnected(ctx)
 	s.metrics.SetCollectorFallbackStatus(ctx, false)
 
 	if s.initialOpampConnSuccess.Load() {
